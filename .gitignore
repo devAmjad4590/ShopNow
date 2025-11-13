@@ -1,0 +1,28 @@
+# Java
+*.class
+*.jar
+*.war
+*.ear
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+*.swp
+
+# Spring Boot
+*.log
+application-local.properties
+
+# Docker
+.env
+docker-compose.override.yml
+
+# Database data
+data/
+postgres-data/
+redis-data/
+
