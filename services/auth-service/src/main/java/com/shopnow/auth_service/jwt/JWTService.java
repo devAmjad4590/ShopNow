@@ -20,16 +20,27 @@ public class JWTService {
     @Value("${jwt.secret}")
     private String SECRET_KEY;
 
+    @Value("${jwt.expiration}")
+    private long jwtExpiration;
+
+    @Value("${jwt.refreshExpiration}")
+    private long refreshExpiration;
+
+
     public String generateToken(UserDetails userDetails){
-        return generateToken(new HashMap<>(), userDetails);
+        return generateToken(new HashMap<>(), userDetails, jwtExpiration);
     }
 
-    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails){
+    public String generateRefreshToken(UserDetails userDetails){
+        return generateToken(new HashMap<>(), userDetails, refreshExpiration);
+    }
+
+    public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiry){
         return Jwts.builder()
                 .claims(extraClaims)
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() * 1000 * 60 * 24))
+                .expiration(new Date(System.currentTimeMillis() + expiry))
                 .signWith(getSignedKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -61,7 +72,7 @@ public class JWTService {
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails){
-        return (userDetails.getUsername().equals(extractUsername(token)) && isTokenExpired(token));
+        return (userDetails.getUsername().equals(extractUsername(token)) && !isTokenExpired(token));
     }
 
     public boolean isTokenExpired(String token){

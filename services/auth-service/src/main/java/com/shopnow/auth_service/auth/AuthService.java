@@ -41,10 +41,31 @@ public class AuthService {
         User user = userRepository.findByEmail(req.getEmail())
                 .orElseThrow(() -> new UsernameNotFoundException("This user does not exist"));
        var jwtToken = jwtService.generateToken(user);
+       var refreshToken = jwtService.generateRefreshToken(user);
 
         return LoginResponse.builder()
                 .message("User is logged in!")
-                .token(jwtToken)
+                .access_token(jwtToken)
+                .refresh_token(refreshToken)
                 .build();
     }
+
+    public RefreshResponse refresh(String refreshToken){
+        String userEmail = jwtService.extractUsername(refreshToken);
+        if (userEmail == null) {
+            throw new IllegalArgumentException("Invalid Refresh Token");
+        }
+        User user = userRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("This user has invalid refresh token"));
+        if(jwtService.isTokenValid(refreshToken, user)){
+            String jwtToken = jwtService.generateToken(user);
+            String newRefreshToken = jwtService.generateRefreshToken(user);
+            return RefreshResponse.builder()
+                    .accessToken(jwtToken)
+                    .refreshToken(newRefreshToken)
+                    .build();
+        }
+        throw new RuntimeException("Refresh token is invalid or expired");
+    }
+
 }
