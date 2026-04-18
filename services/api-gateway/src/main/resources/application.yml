@@ -19,3 +19,9 @@ spring:
             - Path=/auth/**
           filters:
             - PrefixPath=/api/v1
+        - id: user-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/users/**
+          filters:
+            - PrefixPath=/api/v1

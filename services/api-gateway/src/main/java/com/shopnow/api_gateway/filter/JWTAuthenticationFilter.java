@@ -6,6 +6,7 @@ import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -48,8 +49,12 @@ public class JWTAuthenticationFilter implements GlobalFilter, Ordered {
             return exchange.getResponse().setComplete();
         }
 
-        // token valid → pass request forward through remaining filters to downstream service
-        return chain.filter(exchange);
+        // inject caller identity headers so downstream services don't need to re-parse JWT
+        ServerHttpRequest mutated = exchange.getRequest().mutate()
+                .header("X-User-Id",   String.valueOf(jwtService.extractUserId(token)))
+                .header("X-User-Role", jwtService.extractRole(token))
+                .build();
+        return chain.filter(exchange.mutate().request(mutated).build());
     }
 
     // -1 = run before Spring Cloud Gateway's own built-in filters

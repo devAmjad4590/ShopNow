@@ -6,6 +6,7 @@ import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import com.shopnow.auth_service.user.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
@@ -28,11 +29,15 @@ public class JWTService {
 
 
     public String generateToken(UserDetails userDetails){
-        return generateToken(new HashMap<>(), userDetails, jwtExpiration);
+        User u = (User) userDetails;
+        Map<String, Object> claims = Map.of("userId", u.getId(), "role", u.getRole().name());
+        return generateToken(claims, userDetails, jwtExpiration);
     }
 
     public String generateRefreshToken(UserDetails userDetails){
-        return generateToken(new HashMap<>(), userDetails, refreshExpiration);
+        User u = (User) userDetails;
+        Map<String, Object> claims = Map.of("userId", u.getId(), "role", u.getRole().name());
+        return generateToken(claims, userDetails, refreshExpiration);
     }
 
     public String generateToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiry){

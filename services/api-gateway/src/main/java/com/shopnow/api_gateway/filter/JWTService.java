@@ -36,6 +36,14 @@ public class JWTService {
         }
     }
 
+    public Integer extractUserId(String token) {
+        return extractAllClaims(token).get("userId", Integer.class);
+    }
+
+    public String extractRole(String token) {
+        return extractAllClaims(token).get("role", String.class);
+    }
+
     private SecretKey getSigningKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
