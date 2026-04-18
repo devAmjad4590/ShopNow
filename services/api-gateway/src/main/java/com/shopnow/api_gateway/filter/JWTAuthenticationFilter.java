@@ -7,6 +7,7 @@ import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.http.server.reactive.ServerHttpRequestDecorator;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -49,11 +50,17 @@ public class JWTAuthenticationFilter implements GlobalFilter, Ordered {
             return exchange.getResponse().setComplete();
         }
 
-        // inject caller identity headers so downstream services don't need to re-parse JWT
-        ServerHttpRequest mutated = exchange.getRequest().mutate()
-                .header("X-User-Id",   String.valueOf(jwtService.extractUserId(token)))
-                .header("X-User-Role", jwtService.extractRole(token))
-                .build();
+        // inject caller identity headers — use Decorator because Netty headers are read-only
+        Integer userId = jwtService.extractUserId(token);
+        String role = jwtService.extractRole(token);
+        HttpHeaders headers = new HttpHeaders();
+        headers.addAll(exchange.getRequest().getHeaders());
+        headers.set("X-User-Id",   String.valueOf(userId));
+        headers.set("X-User-Role", role);
+        ServerHttpRequest mutated = new ServerHttpRequestDecorator(exchange.getRequest()) {
+            @Override
+            public HttpHeaders getHeaders() { return headers; }
+        };
         return chain.filter(exchange.mutate().request(mutated).build());
     }
 

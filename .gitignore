@@ -26,3 +26,5 @@ data/
 postgres-data/
 redis-data/
 
+CLAUDE.md
+GEMINI.md
