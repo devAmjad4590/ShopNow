@@ -43,7 +43,7 @@ public class CategoryService {
         categoryRepository.deleteById(id);
     }
 
-    Category findOrThrow(Integer id) {
+    public Category findOrThrow(Integer id) {
         return categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found: " + id));
     }
