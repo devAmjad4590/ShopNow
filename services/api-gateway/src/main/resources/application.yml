@@ -25,3 +25,9 @@ spring:
             - Path=/users/**
           filters:
             - PrefixPath=/api/v1
+        - id: product-catalog
+          uri: http://localhost:8083
+          predicates:
+            - Path=/products/**, /categories/**
+          filters:
+            - PrefixPath=/api/v1
