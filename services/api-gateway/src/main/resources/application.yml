@@ -31,3 +31,9 @@ spring:
             - Path=/products/**, /categories/**
           filters:
             - PrefixPath=/api/v1
+        - id: cart-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/cart/**
+          filters:
+            - PrefixPath=/api/v1
