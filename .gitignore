@@ -29,3 +29,7 @@ redis-data/
 CLAUDE.md
 GEMINI.md
 TASK.md
+
+# Python
+__pycache__/
+*.pyc
