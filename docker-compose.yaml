@@ -1,6 +1,7 @@
 # docker-compose.yml
 services:
-  # Kafka in KRaft mode (ZooKeeper-free)
+  # ── Infrastructure ────────────────────────────────────────────────────────
+
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
@@ -22,7 +23,6 @@ services:
     networks:
       - shopnow-network
 
-  # PostgreSQL for all services
   postgres:
     image: postgres:15-alpine
     container_name: postgres
@@ -36,8 +36,12 @@ services:
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - shopnow-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  # Redis for Cart Service
   redis:
     image: redis:7-alpine
     container_name: redis
@@ -46,16 +50,95 @@ services:
     networks:
       - shopnow-network
 
-  # API Gateway (optional; replace with your real service)
-  # api-gateway:
-  #   build: ./services/api-gateway
-  #   container_name: api-gateway
-  #   ports:
-  #     - "8080:8080"
-  #   depends_on:
-  #     - auth-service
-  #   networks:
-  #     - shopnow-network
+  # ── Services ──────────────────────────────────────────────────────────────
+
+  auth-service:
+    build: ./services/auth-service
+    container_name: auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth-service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: "123"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-900000}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - shopnow-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8081 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  user-service:
+    build: ./services/user-service
+    container_name: user-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user-service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: "123"
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - shopnow-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8082 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  product-catalog:
+    build: ./services/product-catalog
+    container_name: product-catalog
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/product-catalog
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: "123"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - shopnow-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8083 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  api-gateway:
+    build: ./services/api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      AUTH_SERVICE_URL: http://auth-service:8081
+      USER_SERVICE_URL: http://user-service:8082
+      PRODUCT_CATALOG_URL: http://product-catalog:8083
+      CART_SERVICE_URL: http://cart-service:8084
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      product-catalog:
+        condition: service_healthy
+    networks:
+      - shopnow-network
 
 networks:
   shopnow-network:
@@ -63,4 +146,3 @@ networks:
 
 volumes:
   postgres-data:
-

@@ -32,4 +32,6 @@ TASK.md
 
 # Python
 __pycache__/
+.claude/
 *.pyc
+.env
