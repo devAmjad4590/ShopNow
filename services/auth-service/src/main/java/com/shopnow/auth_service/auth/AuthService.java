@@ -1,5 +1,6 @@
 package com.shopnow.auth_service.auth;
 
+import com.shopnow.auth_service.exception.EmailAlreadyExistsException;
 import com.shopnow.auth_service.jwt.JWTService;
 import com.shopnow.auth_service.user.Role;
 import com.shopnow.auth_service.user.User;
@@ -20,6 +21,9 @@ public class AuthService {
     private final JWTService jwtService;
 
     public RegistrationResponse registerUser(RegistrationRequest req){
+        if (userRepository.findByEmail(req.getEmail()).isPresent()) {
+            throw new EmailAlreadyExistsException("Email already in use: " + req.getEmail());
+        }
         User newUser = User.builder()
                 .firstName(req.getFirstName())
                 .lastName(req.getLastName())
