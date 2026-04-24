@@ -27,13 +27,15 @@ public class JWTAuthenticationFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
-
-        // /auth/** routes are public — no token needed (login, register, refresh)
-        // GET /products/** and GET /categories/** are public read endpoints
         HttpMethod method = exchange.getRequest().getMethod();
-        if (path.startsWith("/auth/")
-                || (HttpMethod.GET.equals(method)
-                    && (path.startsWith("/products") || path.startsWith("/categories")))) {
+
+        // Only enforce auth on explicitly protected routes.
+        // Anything else passes through — unknown paths get a natural 404 from the router.
+        boolean requiresAuth = path.startsWith("/users/")
+                || (!HttpMethod.GET.equals(method)
+                    && (path.startsWith("/products") || path.startsWith("/categories")));
+
+        if (!requiresAuth) {
             return chain.filter(exchange);
         }
 
