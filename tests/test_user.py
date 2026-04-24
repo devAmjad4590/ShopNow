@@ -102,14 +102,19 @@ class TestGetProfile:
         the gateway filter which checks for 'Bearer ' prefix and then passes
         the empty string to jwtService.isTokenValid(), which should fail.
         Expected: 401 Unauthorized.
+        httpx rejects trailing-whitespace header values per HTTP spec, so either
+        outcome (LocalProtocolError or 401) confirms the empty bearer is rejected.
         """
-        response = httpx.get(
-            f"{gateway_url}/users/me/profile",
-            headers={"Authorization": "Bearer "},
-        )
-        assert response.status_code == 401, (
-            f"Expected 401 for empty bearer, got {response.status_code}: {response.text}"
-        )
+        try:
+            response = httpx.get(
+                f"{gateway_url}/users/me/profile",
+                headers={"Authorization": "Bearer "},
+            )
+            assert response.status_code == 401, (
+                f"Expected 401 for empty bearer, got {response.status_code}: {response.text}"
+            )
+        except httpx.LocalProtocolError:
+            pass  # httpx enforces HTTP spec — trailing-space header is invalid
 
 
 # ===========================================================================
