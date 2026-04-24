@@ -14,6 +14,7 @@ import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 
 @Service
@@ -46,6 +47,7 @@ public class JWTService {
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expiry))
+                .id(UUID.randomUUID().toString())
                 .signWith(getSignedKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
