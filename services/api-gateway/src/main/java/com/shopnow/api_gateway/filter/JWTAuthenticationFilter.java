@@ -35,26 +35,19 @@ public class JWTAuthenticationFilter implements GlobalFilter, Ordered {
                 || (!HttpMethod.GET.equals(method)
                     && (path.startsWith("/products") || path.startsWith("/categories")));
 
-        if (!requiresAuth) {
-            return chain.filter(exchange);
-        }
-
         // read the Authorization header from the incoming request
         String authHeader = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+        String token = (authHeader != null && authHeader.startsWith("Bearer "))
+                ? authHeader.substring(7) : null;
+        boolean tokenValid = token != null && jwtService.isTokenValid(token);
 
-        // header missing or not a Bearer token → reject immediately with 401
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete(); // end response, send nothing
-        }
-
-        // strip "Bearer " prefix (7 chars) to get the raw JWT string
-        String token = authHeader.substring(7);
-
-        // invalid signature or expired → reject with 401
-        if (!jwtService.isTokenValid(token)) {
+        if (requiresAuth && !tokenValid) {
             exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
             return exchange.getResponse().setComplete();
+        }
+
+        if (!tokenValid) {
+            return chain.filter(exchange);
         }
 
         // inject caller identity headers — use Decorator because Netty headers are read-only
