@@ -5,6 +5,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpRequestDecorator;
@@ -28,8 +29,12 @@ public class JWTAuthenticationFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getURI().getPath();
 
         // /auth/** routes are public — no token needed (login, register, refresh)
-        if (path.startsWith("/auth/")) {
-            return chain.filter(exchange); // pass through to next filter → downstream service
+        // GET /products/** and GET /categories/** are public read endpoints
+        HttpMethod method = exchange.getRequest().getMethod();
+        if (path.startsWith("/auth/")
+                || (HttpMethod.GET.equals(method)
+                    && (path.startsWith("/products") || path.startsWith("/categories")))) {
+            return chain.filter(exchange);
         }
 
         // read the Authorization header from the incoming request
