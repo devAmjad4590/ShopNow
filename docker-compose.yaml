@@ -125,9 +125,9 @@ services:
     ports:
       - "8084:8084"
     environment:
-      SPRING_REDIS_HOST: redis
-      SPRING_REDIS_PORT: 6379
-      PRODUCT_CATALOG_URL: http://product-catalog:8083/api/v1
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      PRODUCT_CATALOG_BASE_URL: http://product-catalog:8083/api/v1
       JWT_SECRET: ${JWT_SECRET}
     depends_on:
       - redis
