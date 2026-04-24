@@ -119,6 +119,28 @@ services:
       retries: 10
       start_period: 40s
 
+  cart-service:
+    build: ./services/cart-service
+    container_name: cart-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PORT: 6379
+      PRODUCT_CATALOG_URL: http://product-catalog:8083/api/v1
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      - redis
+      - product-catalog
+    networks:
+      - shopnow-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8084 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
   api-gateway:
     build: ./services/api-gateway
     container_name: api-gateway
@@ -136,6 +158,8 @@ services:
       user-service:
         condition: service_healthy
       product-catalog:
+        condition: service_healthy
+      cart-service:
         condition: service_healthy
     networks:
       - shopnow-network
