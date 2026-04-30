@@ -32,6 +32,7 @@ public class JWTAuthenticationFilter implements GlobalFilter, Ordered {
         // Only enforce auth on explicitly protected routes.
         // Anything else passes through — unknown paths get a natural 404 from the router.
         boolean requiresAuth = path.startsWith("/users/")
+                || path.startsWith("/orders")
                 || (!HttpMethod.GET.equals(method)
                     && (path.startsWith("/products") || path.startsWith("/categories")));
 

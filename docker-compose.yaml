@@ -20,6 +20,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_LOG_DIRS: /var/lib/kafka/data
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     networks:
       - shopnow-network
 
@@ -141,6 +142,33 @@ services:
       retries: 10
       start_period: 40s
 
+  order-service:
+    build: ./services/order-service
+    container_name: order-service
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order-service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: "123"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CART_SERVICE_BASE_URL: http://cart-service:8084/api/v1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      cart-service:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - shopnow-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8085 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
   api-gateway:
     build: ./services/api-gateway
     container_name: api-gateway
@@ -152,6 +180,7 @@ services:
       USER_SERVICE_URL: http://user-service:8082
       PRODUCT_CATALOG_URL: http://product-catalog:8083
       CART_SERVICE_URL: http://cart-service:8084
+      ORDER_SERVICE_URL: http://order-service:8085
     depends_on:
       auth-service:
         condition: service_healthy
@@ -160,6 +189,8 @@ services:
       product-catalog:
         condition: service_healthy
       cart-service:
+        condition: service_healthy
+      order-service:
         condition: service_healthy
     networks:
       - shopnow-network
