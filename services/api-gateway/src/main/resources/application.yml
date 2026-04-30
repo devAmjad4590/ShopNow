@@ -34,12 +34,12 @@ spring:
         - id: cart-service
           uri: ${CART_SERVICE_URL:http://localhost:8084}
           predicates:
-            - Path=/cart/**
+            - Path=/cart, /cart/**
           filters:
             - PrefixPath=/api/v1
         - id: order-service
           uri: ${ORDER_SERVICE_URL:http://localhost:8085}
           predicates:
-            - Path=/orders/**
+            - Path=/orders, /orders/**
           filters:
             - PrefixPath=/api/v1
