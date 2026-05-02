@@ -193,6 +193,33 @@ services:
       retries: 10
       start_period: 60s
 
+  payment-service:
+    build: ./services/payment-service
+    container_name: payment-service
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment-service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: "123"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      inventory-service:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - shopnow-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8087 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
   api-gateway:
     build: ./services/api-gateway
     container_name: api-gateway
@@ -206,6 +233,7 @@ services:
       CART_SERVICE_URL: http://cart-service:8084
       ORDER_SERVICE_URL: http://order-service:8085
       INVENTORY_SERVICE_URL: http://inventory-service:8086
+      PAYMENT_SERVICE_URL: http://payment-service:8087
     depends_on:
       auth-service:
         condition: service_healthy
@@ -218,6 +246,8 @@ services:
       order-service:
         condition: service_healthy
       inventory-service:
+        condition: service_healthy
+      payment-service:
         condition: service_healthy
     networks:
       - shopnow-network
