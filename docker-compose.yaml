@@ -169,6 +169,30 @@ services:
       retries: 10
       start_period: 60s
 
+  inventory-service:
+    build: ./services/inventory-service
+    container_name: inventory-service
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/inventory-service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: "123"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    networks:
+      - shopnow-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8086 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
   api-gateway:
     build: ./services/api-gateway
     container_name: api-gateway
@@ -181,6 +205,7 @@ services:
       PRODUCT_CATALOG_URL: http://product-catalog:8083
       CART_SERVICE_URL: http://cart-service:8084
       ORDER_SERVICE_URL: http://order-service:8085
+      INVENTORY_SERVICE_URL: http://inventory-service:8086
     depends_on:
       auth-service:
         condition: service_healthy
@@ -191,6 +216,8 @@ services:
       cart-service:
         condition: service_healthy
       order-service:
+        condition: service_healthy
+      inventory-service:
         condition: service_healthy
     networks:
       - shopnow-network

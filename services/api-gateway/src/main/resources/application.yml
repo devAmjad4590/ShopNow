@@ -43,3 +43,9 @@ spring:
             - Path=/orders, /orders/**
           filters:
             - PrefixPath=/api/v1
+        - id: inventory-service
+          uri: ${INVENTORY_SERVICE_URL:http://localhost:8086}
+          predicates:
+            - Path=/inventory/**
+          filters:
+            - PrefixPath=/api/v1
