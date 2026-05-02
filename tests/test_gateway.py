@@ -443,39 +443,6 @@ class TestUnknownRoutes:
             f"{response.text}"
         )
 
-    def test_cart_route_not_yet_configured_returns_404(
-        self, gateway_url: str
-    ) -> None:
-        """GET /cart/ → 404 — Cart Service route is not configured in the gateway.
-
-        The Cart Service (port 8084) is listed as 'Not Started' in CLAUDE.md.
-        Its route is not in application.yml.  A 404 confirms the gateway does
-        not have a stray route for /cart/.
-
-        When the Cart Service is implemented, remove this test and add a
-        proper routing + JWT test in its place.
-        """
-        response = httpx.get(
-            f"{gateway_url}/cart/",
-            timeout=10,
-        )
-        assert response.status_code == 404, (
-            f"Expected 404 (/cart is not a configured gateway route), "
-            f"got {response.status_code}: {response.text}"
-        )
-
-    def test_order_route_not_yet_configured_returns_404(
-        self, gateway_url: str
-    ) -> None:
-        """GET /orders/ → 404 — Order Service route is not yet configured."""
-        response = httpx.get(
-            f"{gateway_url}/orders/",
-            timeout=10,
-        )
-        assert response.status_code == 404, (
-            f"Expected 404 (/orders is not a configured gateway route), "
-            f"got {response.status_code}: {response.text}"
-        )
 
     def test_root_path_returns_404(self, gateway_url: str) -> None:
         """GET / → 404 — no root-level route is configured."""
