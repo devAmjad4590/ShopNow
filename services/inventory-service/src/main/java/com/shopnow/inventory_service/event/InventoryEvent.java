@@ -1,3 +1,12 @@
 package com.shopnow.inventory_service.event;
 
-public record InventoryEvent(String type, String correlationId, String reason) {}
+import java.math.BigDecimal;
+
+public record InventoryEvent(
+        String type,
+        String correlationId,
+        String reason,
+        Long orderId,
+        Integer userId,
+        BigDecimal totalAmount
+) {}

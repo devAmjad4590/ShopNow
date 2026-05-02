@@ -35,11 +35,13 @@ public class SagaEventHandler {
 
             if (result.success()) {
                 kafkaTemplate.send(INVENTORY_EVENTS,
-                        new InventoryEvent("INVENTORY_RESERVED", event.correlationId(), null));
+                        new InventoryEvent("INVENTORY_RESERVED", event.correlationId(), null,
+                                event.orderId(), event.userId(), event.totalAmount()));
                 log.info("Stock reserved for correlationId={}", event.correlationId());
             } else {
                 kafkaTemplate.send(INVENTORY_EVENTS,
-                        new InventoryEvent("INVENTORY_RESERVATION_FAILED", event.correlationId(), result.failureReason()));
+                        new InventoryEvent("INVENTORY_RESERVATION_FAILED", event.correlationId(), result.failureReason(),
+                                event.orderId(), event.userId(), event.totalAmount()));
                 log.warn("Reservation failed for correlationId={}: {}", event.correlationId(), result.failureReason());
             }
         } catch (Exception e) {
