@@ -108,9 +108,12 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/product-catalog
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: "123"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       postgres:
         condition: service_healthy
+      kafka:
+        condition: service_started
     networks:
       - shopnow-network
     healthcheck:

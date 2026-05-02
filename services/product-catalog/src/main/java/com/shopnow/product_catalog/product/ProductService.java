@@ -2,18 +2,23 @@ package com.shopnow.product_catalog.product;
 
 import com.shopnow.product_catalog.category.Category;
 import com.shopnow.product_catalog.category.CategoryService;
+import com.shopnow.product_catalog.event.ProductCreatedEvent;
 import com.shopnow.product_catalog.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 public class ProductService {
 
+    private static final String PRODUCT_EVENTS = "product-events";
+
     private final ProductRepository productRepository;
     private final CategoryService categoryService;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
 
     public Page<ProductResponse> getAll(Integer categoryId, Pageable pageable) {
         Page<Product> page = categoryId != null
@@ -36,7 +41,14 @@ public class ProductService {
                 .categoryId(request.categoryId())
                 .stock(request.stock() != null ? request.stock() : 0)
                 .build();
-        return toResponse(productRepository.save(product));
+        Product saved = productRepository.save(product);
+        kafkaTemplate.send(PRODUCT_EVENTS, new ProductCreatedEvent(
+                "PRODUCT_CREATED",
+                saved.getId().longValue(),
+                saved.getName(),
+                saved.getStock()
+        ));
+        return toResponse(saved);
     }
 
     public ProductResponse update(Integer id, ProductRequest request) {

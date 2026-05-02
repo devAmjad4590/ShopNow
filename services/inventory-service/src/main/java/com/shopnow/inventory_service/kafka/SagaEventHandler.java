@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shopnow.inventory_service.event.InventoryEvent;
 import com.shopnow.inventory_service.event.OrderCreatedEvent;
 import com.shopnow.inventory_service.event.PaymentEvent;
+import com.shopnow.inventory_service.event.ProductCreatedEvent;
 import com.shopnow.inventory_service.service.InventoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +22,20 @@ public class SagaEventHandler {
     private final InventoryService inventoryService;
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final ObjectMapper objectMapper;
+
+    @KafkaListener(topics = "product-events", groupId = "inventory-service")
+    public void handleProductCreated(String payload) {
+        try {
+            ProductCreatedEvent event = objectMapper.readValue(payload, ProductCreatedEvent.class);
+            if (!"PRODUCT_CREATED".equals(event.type())) {
+                return;
+            }
+            inventoryService.seedStock(event.productId(), event.productName(), event.stock());
+            log.info("Seeded inventory for productId={} stock={}", event.productId(), event.stock());
+        } catch (Exception e) {
+            log.error("Failed to process product event: {}", payload, e);
+        }
+    }
 
     @KafkaListener(topics = "order-events", groupId = "inventory-service")
     public void handleOrderCreated(String payload) {
