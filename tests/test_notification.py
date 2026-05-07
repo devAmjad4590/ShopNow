@@ -118,15 +118,21 @@ def _ensure_stock(quantity: int = 50) -> None:
     )
 
 
+_TERMINAL_STATUSES = {"CONFIRMED", "FAILED", "CANCELLED"}
+
+
 def poll_order_status(
     gateway_url: str, order_id: int, token: str, timeout: int = SAGA_TIMEOUT_SECONDS
 ) -> str:
     """
-    Poll GET /orders/{orderId} via the gateway until status is no longer PENDING
-    or the timeout expires. Returns the final status string.
+    Poll GET /orders/{orderId} via the gateway until status reaches a terminal state
+    (CONFIRMED, FAILED, CANCELLED) or the timeout expires.
 
-    Raises TimeoutError with a descriptive message if still PENDING after timeout.
+    Returns the terminal status string.
+    Raises TimeoutError if the Saga does not settle within the timeout.
     Polls every 1 second.
+
+    Note: INVENTORY_RESERVED is an intermediate state — polling must continue past it.
     """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -138,12 +144,12 @@ def poll_order_status(
             f"Polling GET /orders/{order_id} returned {response.status_code}: {response.text}"
         )
         status = response.json().get("status")
-        if status != "PENDING":
+        if status in _TERMINAL_STATUSES:
             return status
         time.sleep(1)
     raise TimeoutError(
-        f"Order {order_id} still PENDING after {timeout}s — "
-        "Saga did not settle within the timeout window."
+        f"Order {order_id} did not reach a terminal state after {timeout}s — "
+        "last known status is still intermediate (e.g. INVENTORY_RESERVED)."
     )
 
 

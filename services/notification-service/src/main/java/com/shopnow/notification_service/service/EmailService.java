@@ -45,7 +45,7 @@ public class EmailService {
         }
         send(
                 user.email(),
-                "ShopNow Order #" + event.orderId() + " Could Not Be Processed",
+                "ShopNow Order #" + event.orderId() + " Failed",
                 "Hi " + user.firstName() + ",\n\n" +
                 "Unfortunately, your order #" + event.orderId() + " could not be processed.\n" +
                 "No charges were made. Please try again.\n\n" +
