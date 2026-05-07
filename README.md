@@ -1,62 +1,179 @@
-# ShopNow - Spring Boot Microservices Demo
+# ShopNow — Spring Boot Microservices
 
-This project demonstrates a scalable e-commerce backend using Java, Spring Boot, and Docker Compose. It features a choreography-based Saga pattern, event-driven architecture with Kafka, and essential production patterns.
+A production-style e-commerce backend showcasing **choreography-based Saga**, **event-driven architecture** via Apache Kafka, and **resilience patterns** with Resilience4j. Built entirely with Java 21 and Spring Boot 3.
+
+---
+
+## Architecture
+
+<!-- TODO: add architecture diagram -->
+![System Architecture](docs/image.png) 
+
+### Saga Flow
+
+**Happy path:**
+```
+OrderCreatedEvent
+  → [Inventory] reserve stock       → InventoryReservedEvent
+  → [Payment]   process payment     → PaymentSuccessEvent
+  → [Order]     confirm order       → OrderConfirmedEvent
+  → [Notification] send email
+```
+
+**Compensation (payment fails):**
+```
+OrderCreatedEvent
+  → [Inventory] reserve stock       → InventoryReservedEvent
+  → [Payment]   fails               → PaymentFailedEvent
+  → [Inventory] release stock
+  → [Order]     mark FAILED
+  → [Notification] send failure email
+```
+
+Kafka topics: `order-events`, `inventory-events`, `payment-events`
+
+---
+
+## Services
+
+| Service | Port | Description |
+|---|---|---|
+| API Gateway | 8080 | Spring Cloud Gateway — JWT validation and routing |
+| Auth Service | 8081 | Registration, login, JWT + refresh token (HttpOnly cookie) |
+| User Service | 8082 | User profiles and addresses |
+| Product Catalog | 8083 | Products and categories CRUD |
+| Cart Service | 8084 | Shopping cart backed by Redis (7-day TTL) |
+| Order Service | 8085 | Order creation, Saga coordinator |
+| Inventory Service | 8086 | Stock management and reservations |
+| Payment Service | 8087 | Simulated payment processing via Stripe |
+| Notification Service | 8088 | Email notifications via MailHog (local) |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Language | Java 21 |
+| Framework | Spring Boot 3.3.5 |
+| Gateway | Spring Cloud Gateway (reactive) |
+| Messaging | Apache Kafka 7.5.0 (KRaft, no ZooKeeper) |
+| Auth | Spring Security + JJWT 0.12.3 |
+| Persistence | Spring Data JPA + PostgreSQL 15 |
+| Cache | Redis 7 |
+| Resilience | Resilience4j (circuit breaker) |
+| Build | Maven |
+| Infra | Docker Compose |
+
+---
 
 ## Project Structure
 
-- `services/` – Each subfolder is a microservice (auth, user, product, cart, order, inventory, payment, notification, api-gateway)
-- `shared/` – Shared models and common code, e.g., event payloads, DTOs
-- `docs/` – Architecture diagrams, API descriptions, Saga flow docs, and setup notes
-- `docker-compose.yml` – Local orchestration: Kafka (KRaft mode), PostgreSQL, Redis, and placeholders for all services
+```
+shopnow-ecommerce/
+├── services/
+│   ├── api-gateway/
+│   ├── auth-service/
+│   ├── user-service/
+│   ├── product-catalog/
+│   ├── cart-service/
+│   ├── order-service/
+│   ├── inventory-service/
+│   ├── payment-service/
+│   └── notification-service/
+├── shared/           # shared event payloads and DTOs
+├── docker/
+│   └── postgres/
+│       └── init.sql  # creates all service databases
+├── docs/
+└── docker-compose.yaml
+```
 
-## Core Technologies
+---
 
-- Java 17+, Spring Boot 3.x
-- Spring Web, Data JPA, Security, and Cloud Gateway
-- Apache Kafka (no Zookeeper, KRaft mode)
-- PostgreSQL
-- Redis (for cart)
-- Docker Compose
+## API Reference
 
-## Key Design Patterns
+### Auth Service — `POST /api/v1/auth/*`
 
-- **Choreography-based Saga** via Kafka events (order-events, inventory-events, payment-events)
-- **Event-driven Communication:** Microservices emit/consume events instead of direct HTTP calls
-- **Resilience:** Circuit breaker with Resilience4j (to be added as services are built)
-- **Separation:** Each service is responsible for a domain; shared models and contracts are versioned in `/shared`
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| POST | `/register` | None | Create account, returns JWT |
+| POST | `/login` | None | Returns access token; sets `refresh_token` HttpOnly cookie |
+| POST | `/refresh` | Cookie | Rotates both tokens |
+
+### Cart Service — `POST /api/v1/cart/*`
+
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/cart` | JWT | Get current cart |
+| POST | `/cart/items` | JWT | Add item (validates against Product Catalog) |
+| PUT | `/cart/items/{productId}` | JWT | Update quantity |
+| DELETE | `/cart/items/{productId}` | JWT | Remove item |
+| DELETE | `/cart` | JWT | Clear cart |
+| GET | `/internal/cart/{userId}` | Internal | Inter-service read |
+
+### Gateway Auth Rules
+
+- **JWT required:** `GET|POST /users/**`, non-GET `/products/**`, non-GET `/categories/**`
+- **Public:** `POST /auth/**`, `GET /products/**`, `GET /categories/**`
+
+---
 
 ## Getting Started
 
 ### Prerequisites
 
-- Java 17+
+- Java 21
 - Docker + Docker Compose
 - Maven
 
-### Running Infrastructure
+### 1. Configure environment
+
+Create a `.env` file at the project root:
+
+```env
+POSTGRES_PASSWORD=your_postgres_password
+JWT_SECRET=your_jwt_secret_min_256_bits
+JWT_EXPIRATION=900000
+JWT_REFRESH_EXPIRATION=604800000
+STRIPE_SECRET_KEY=sk_test_...
 ```
-docker-compose up -d
+
+### 2. Start infrastructure and services
+
+```bash
+docker compose up -d
 ```
 
-This starts Kafka (KRaft mode), PostgreSQL, and Redis. Add services to the compose file as you implement them.
+Starts Kafka (KRaft), PostgreSQL, Redis, MailHog, and all nine services.
 
-### Next Steps
+PostgreSQL databases are created automatically by `docker/postgres/init.sql`.
 
-1. Scaffold the `auth-service` (user registration, login, JWT)
-2. Add user, product, order, inventory, payment, cart, and notification services one-by-one
-3. Connect services with Kafka topics for events and sagas
-4. Expand the documentation in `/docs` as you add logic
+### 3. Run a service locally (optional)
 
-## Documentation Plan
+```bash
+cd services/auth-service
+JWT_SECRET=... JWT_EXPIRATION=900000 JWT_REFRESH_EXPIRATION=604800000 mvn spring-boot:run
+```
 
-- **/docs/architecture.md**: System diagrams and component overview
-- **/docs/saga-flow.md**: Step-by-step Saga explanation (happy and failure paths)
-- **/docs/api-documentation.md**: REST endpoint contracts per service
+All services can run standalone against the Dockerised infrastructure.
 
-## Contribution
+### Local mail
 
-Open for learning, feedback, and improvements. Contributions welcome as this becomes a portfolio-quality example.
+MailHog captures outbound email in dev. Open `http://localhost:8025` to view.
 
 ---
 
-> This project is for educational demonstration. For real-world readiness, add authentication, logging, monitoring, testing, and observability as described in the documentation.
+## Design Decisions
+
+- **Choreography over orchestration** — no central Saga orchestrator; services react to events and emit compensating events on failure.
+- **Idempotent handlers** — every event carries a `correlationId` used to deduplicate processing.
+- **Constructor injection everywhere** — `@RequiredArgsConstructor` (Lombok); no field injection.
+- **Records for DTOs** — immutable request/response types using Java records.
+- **No service discovery** — services communicate via env-var URLs (`${SERVICE_URL}`), Docker-network hostnames in Compose.
+
+---
+
+## What This Project Does Not Cover
+
+Rate limiting, service discovery (Eureka), Config Server, CQRS, Elasticsearch, Kubernetes, and frontend. This is intentional — the focus is on the Saga pattern and event-driven communication.
