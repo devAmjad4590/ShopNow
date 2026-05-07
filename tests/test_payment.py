@@ -61,6 +61,8 @@ Environment variables:
   SAGA_TIMEOUT_SECONDS   — max seconds to wait for Saga to settle (default: 15)
 """
 
+import base64
+import json
 import os
 import time
 import uuid
@@ -92,6 +94,14 @@ NONEXISTENT_ORDER_ID = 999_999_999
 def auth_headers(access_token: str) -> dict:
     """Build an Authorization header dict from a bearer token."""
     return {"Authorization": f"Bearer {access_token}"}
+
+
+def _get_user_id_from_token(token: str) -> int:
+    """Decode JWT payload (no verification) and return the userId claim."""
+    segment = token.split('.')[1]
+    segment += '=' * (-len(segment) % 4)
+    payload = json.loads(base64.b64decode(segment))
+    return int(payload['userId'])
 
 
 def _require_known_product() -> None:
@@ -130,7 +140,7 @@ def poll_order_status(gateway_url: str, order_id: int, token: str, timeout: int 
     )
 
 
-def _seed_cart_and_create_order(gateway_url: str, token: str) -> int:
+def _seed_cart_and_create_order(gateway_url: str, token: str) -> tuple[int, str]:
     """
     Clear the cart, add KNOWN_PRODUCT_ID, then POST /orders.
     Returns the numeric orderId (Long) from the response.
@@ -155,11 +165,12 @@ def _seed_cart_and_create_order(gateway_url: str, token: str) -> int:
     assert order_resp.status_code == 201, (
         f"Failed to create order: {order_resp.status_code} {order_resp.text}"
     )
-    order_id = order_resp.json().get("id")
-    assert order_id is not None, (
-        f"'id' missing from order creation response: {order_resp.json()}"
-    )
-    return int(order_id)
+    body = order_resp.json()
+    order_id = body.get("id")
+    correlation_id = body.get("correlationId")
+    assert order_id is not None, f"'id' missing from order creation response: {body}"
+    assert correlation_id is not None, f"'correlationId' missing from order creation response: {body}"
+    return int(order_id), correlation_id
 
 
 # ===========================================================================
@@ -201,7 +212,7 @@ class TestGetPaymentStatus:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         final_status = poll_order_status(gateway_url, order_id, token)
         assert final_status == "CONFIRMED", (
             f"Expected order {order_id} to reach CONFIRMED but got {final_status}"
@@ -230,7 +241,7 @@ class TestGetPaymentStatus:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         poll_order_status(gateway_url, order_id, token)
 
         response = httpx.get(f"{PAYMENT_DIRECT_URL}/internal/payments/{order_id}")
@@ -258,16 +269,16 @@ class TestSimulateFailure:
     and that subsequent orders without a flag are not affected.
     """
 
-    def test_returns_200_for_any_numeric_order_id(self) -> None:
+    def test_returns_200_for_any_numeric_user_id(self) -> None:
         """
-        simulate-failure only registers a flag in memory — it does not validate
-        whether the orderId actually exists. Calling it with any numeric ID must
-        return 200 OK. The flag is simply stored in a ConcurrentHashSet.
+        simulate-failure registers a flag in memory for the given userId — it does
+        not validate whether the userId actually exists. Calling it with any numeric
+        ID must return 200 OK.
         """
-        arbitrary_order_id = NONEXISTENT_ORDER_ID
+        arbitrary_user_id = NONEXISTENT_ORDER_ID
 
         response = httpx.post(
-            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/{arbitrary_order_id}"
+            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/next-for-user/{arbitrary_user_id}"
         )
 
         assert response.status_code == 200, (
@@ -277,18 +288,18 @@ class TestSimulateFailure:
 
     def test_calling_multiple_times_before_payment_is_idempotent(self) -> None:
         """
-        The forced-failure set is a ConcurrentHashSet<Long>. Adding the same orderId
-        multiple times has no effect beyond the first call — the set contains at most
-        one entry per orderId. All calls must return 200 OK without error.
+        The forced-failure set is a ConcurrentHashSet<Integer>. Adding the same
+        userId multiple times has no effect beyond the first call. All calls must
+        return 200 OK without error.
         """
-        order_id = NONEXISTENT_ORDER_ID + 1
+        user_id = NONEXISTENT_ORDER_ID + 1
 
         for i in range(3):
             response = httpx.post(
-                f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/{order_id}"
+                f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/next-for-user/{user_id}"
             )
             assert response.status_code == 200, (
-                f"Call #{i + 1} to simulate-failure for order {order_id} "
+                f"Call #{i + 1} to simulate-failure for user {user_id} "
                 f"returned {response.status_code}: {response.text}"
             )
 
@@ -308,18 +319,20 @@ class TestSimulateFailure:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        # Order 1: forced failure.
-        order1_id = _seed_cart_and_create_order(gateway_url, token)
+        user_id = _get_user_id_from_token(token)
+
+        # Order 1: register failure BEFORE order creation to avoid race with Saga.
         httpx.post(
-            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/{order1_id}"
+            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/next-for-user/{user_id}"
         )
+        order1_id, _ = _seed_cart_and_create_order(gateway_url, token)
         status1 = poll_order_status(gateway_url, order1_id, token)
         assert status1 == "FAILED", (
             f"Expected order {order1_id} to be FAILED after simulate-failure, got {status1}"
         )
 
         # Order 2: no simulate-failure → flag was consumed by order 1, not reused.
-        order2_id = _seed_cart_and_create_order(gateway_url, token)
+        order2_id, _ = _seed_cart_and_create_order(gateway_url, token)
         status2 = poll_order_status(gateway_url, order2_id, token)
         assert status2 == "CONFIRMED", (
             f"Expected order {order2_id} to reach CONFIRMED (flag consumed after order 1), "
@@ -349,7 +362,7 @@ class TestSagaHappyPath:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         final_status = poll_order_status(gateway_url, order_id, token)
 
         assert final_status == "CONFIRMED", (
@@ -367,7 +380,7 @@ class TestSagaHappyPath:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         final_status = poll_order_status(gateway_url, order_id, token)
         assert final_status == "CONFIRMED", (
             f"Order {order_id} did not reach CONFIRMED: {final_status}"
@@ -394,7 +407,7 @@ class TestSagaHappyPath:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         final_status = poll_order_status(gateway_url, order_id, token)
         assert final_status == "CONFIRMED", (
             f"Order {order_id} did not reach CONFIRMED: {final_status}"
@@ -418,7 +431,7 @@ class TestSagaHappyPath:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         final_status = poll_order_status(gateway_url, order_id, token)
         assert final_status == "CONFIRMED", (
             f"Order {order_id} did not reach CONFIRMED: {final_status}"
@@ -454,10 +467,11 @@ class TestSagaCompensationPath:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        user_id = _get_user_id_from_token(token)
         httpx.post(
-            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/{order_id}"
+            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/next-for-user/{user_id}"
         )
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         final_status = poll_order_status(gateway_url, order_id, token)
 
         assert final_status == "FAILED", (
@@ -475,10 +489,11 @@ class TestSagaCompensationPath:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        user_id = _get_user_id_from_token(token)
         httpx.post(
-            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/{order_id}"
+            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/next-for-user/{user_id}"
         )
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         final_status = poll_order_status(gateway_url, order_id, token)
         assert final_status == "FAILED", (
             f"Order {order_id} did not reach FAILED: {final_status}"
@@ -505,10 +520,11 @@ class TestSagaCompensationPath:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        user_id = _get_user_id_from_token(token)
         httpx.post(
-            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/{order_id}"
+            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/next-for-user/{user_id}"
         )
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         poll_order_status(gateway_url, order_id, token)
 
         response = httpx.get(f"{PAYMENT_DIRECT_URL}/internal/payments/{order_id}")
@@ -529,10 +545,11 @@ class TestSagaCompensationPath:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        user_id = _get_user_id_from_token(token)
         httpx.post(
-            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/{order_id}"
+            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/next-for-user/{user_id}"
         )
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         poll_order_status(gateway_url, order_id, token)
 
         response = httpx.get(f"{PAYMENT_DIRECT_URL}/internal/payments/{order_id}")
@@ -556,10 +573,11 @@ class TestSagaCompensationPath:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        user_id = _get_user_id_from_token(token)
         httpx.post(
-            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/{order_id}"
+            f"{PAYMENT_DIRECT_URL}/internal/payments/simulate-failure/next-for-user/{user_id}"
         )
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         poll_order_status(gateway_url, order_id, token)
 
         # GET returns a single object, not an array — any duplicate would cause the
@@ -615,7 +633,7 @@ class TestGatewayDoesNotExposeInternalRoutes:
         is incorrectly exposed to external callers.
         """
         response = httpx.post(
-            f"{gateway_url}/internal/payments/simulate-failure/{NONEXISTENT_ORDER_ID}",
+            f"{gateway_url}/internal/payments/simulate-failure/next-for-user/{NONEXISTENT_ORDER_ID}",
             headers=auth_headers(auth_tokens["access_token"]),
         )
         assert response.status_code == 404, (
@@ -661,7 +679,7 @@ class TestPaymentStatusResponseShape:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         poll_order_status(gateway_url, order_id, token)
 
         response = httpx.get(f"{PAYMENT_DIRECT_URL}/internal/payments/{order_id}")
@@ -685,7 +703,7 @@ class TestPaymentStatusResponseShape:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         poll_order_status(gateway_url, order_id, token)
 
         response = httpx.get(f"{PAYMENT_DIRECT_URL}/internal/payments/{order_id}")
@@ -707,7 +725,7 @@ class TestPaymentStatusResponseShape:
         _require_known_product()
         token = auth_tokens["access_token"]
 
-        order_id = _seed_cart_and_create_order(gateway_url, token)
+        order_id, _ = _seed_cart_and_create_order(gateway_url, token)
         poll_order_status(gateway_url, order_id, token)
 
         response = httpx.get(f"{PAYMENT_DIRECT_URL}/internal/payments/{order_id}")
