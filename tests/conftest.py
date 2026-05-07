@@ -18,6 +18,9 @@ GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://localhost:8080")
 # before the gateway was wired up for those routes.
 CATALOG_DIRECT_URL = os.environ.get("CATALOG_URL", "http://localhost:8083/api/v1")
 
+# MailHog web API for email assertion in notification tests.
+MAILHOG_URL = os.environ.get("MAILHOG_URL", "http://localhost:8025")
+
 
 @pytest.fixture(scope="session")
 def base_url() -> str:
