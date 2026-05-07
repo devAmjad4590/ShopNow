@@ -160,7 +160,7 @@ def _seed_cart_and_create_order(gateway_url: str, token: str) -> tuple[int, str]
 
 def _clear_mailhog_inbox() -> None:
     """Delete all messages from MailHog's in-memory store."""
-    httpx.delete(f"{MAILHOG_URL}/api/v2/messages")
+    httpx.delete(f"{MAILHOG_URL}/api/v1/messages")
 
 
 def _get_messages_for_recipient(email: str) -> list[dict]:
@@ -248,13 +248,14 @@ class TestMailHogConnectivity:
 
     def test_mailhog_inbox_can_be_cleared(self) -> None:
         """
-        DELETE /api/v2/messages must return 200. Inbox clearing is used before
+        DELETE /api/v1/messages must return 200. Inbox clearing is used before
         every end-to-end email test to prevent cross-test contamination.
+        Note: MailHog delete lives on v1, not v2 — v2 is read-only.
         """
-        response = httpx.delete(f"{MAILHOG_URL}/api/v2/messages")
+        response = httpx.delete(f"{MAILHOG_URL}/api/v1/messages")
 
         assert response.status_code == 200, (
-            f"MailHog DELETE /api/v2/messages returned {response.status_code}: {response.text}"
+            f"MailHog DELETE /api/v1/messages returned {response.status_code}: {response.text}"
         )
 
     def test_cleared_inbox_has_zero_items(self) -> None:
@@ -262,7 +263,7 @@ class TestMailHogConnectivity:
         After clearing, GET /api/v2/messages must return count=0 and an empty
         items list. This validates the clear operation's effect, not just its HTTP status.
         """
-        httpx.delete(f"{MAILHOG_URL}/api/v2/messages")
+        httpx.delete(f"{MAILHOG_URL}/api/v1/messages")
         response = httpx.get(f"{MAILHOG_URL}/api/v2/messages")
 
         assert response.status_code == 200
