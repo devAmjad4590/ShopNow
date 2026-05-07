@@ -51,6 +51,15 @@ services:
     networks:
       - shopnow-network
 
+  mailhog:
+    image: mailhog/mailhog
+    container_name: mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - shopnow-network
+
   # ── Services ──────────────────────────────────────────────────────────────
 
   auth-service:
@@ -223,6 +232,34 @@ services:
       retries: 10
       start_period: 60s
 
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    ports:
+      - "8088:8088"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      AUTH_SERVICE_URL: http://auth-service:8081
+      MAIL_HOST: mailhog
+      MAIL_PORT: 1025
+    depends_on:
+      kafka:
+        condition: service_started
+      auth-service:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    networks:
+      - shopnow-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8088 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
   api-gateway:
     build: ./services/api-gateway
     container_name: api-gateway
@@ -251,6 +288,8 @@ services:
       inventory-service:
         condition: service_healthy
       payment-service:
+        condition: service_healthy
+      notification-service:
         condition: service_healthy
     networks:
       - shopnow-network
