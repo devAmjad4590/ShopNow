@@ -29,7 +29,7 @@ services:
     container_name: postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "123"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
@@ -70,7 +70,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth-service
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "123"
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-900000}
       JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-604800000}
@@ -94,7 +94,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/user-service
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "123"
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
     depends_on:
       postgres:
@@ -116,7 +116,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/product-catalog
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "123"
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       postgres:
@@ -162,7 +162,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/order-service
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "123"
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       CART_SERVICE_BASE_URL: http://cart-service:8084/api/v1
     depends_on:
@@ -189,7 +189,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/inventory-service
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "123"
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       postgres:
@@ -213,7 +213,7 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/payment-service
       SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: "123"
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
     depends_on:
