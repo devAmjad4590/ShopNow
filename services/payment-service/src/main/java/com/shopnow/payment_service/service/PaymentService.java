@@ -28,7 +28,7 @@ public class PaymentService {
     private final StripePaymentService stripePaymentService;
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    private final Set<Long> forcedFailureOrders = ConcurrentHashMap.newKeySet();
+    private final Set<Integer> forcedFailureUsers = ConcurrentHashMap.newKeySet();
 
     public void processInventoryReservedEvent(InventoryReservedEvent event) {
         if (paymentRepository.existsByCorrelationId(event.correlationId())) {
@@ -47,8 +47,8 @@ public class PaymentService {
         paymentRepository.save(payment);
         log.info("Payment record created for orderId={} correlationId={}", event.orderId(), event.correlationId());
 
-        if (forcedFailureOrders.remove(event.orderId())) {
-            log.info("Forced failure triggered for orderId={}", event.orderId());
+        if (forcedFailureUsers.remove(event.userId())) {
+            log.info("Forced failure triggered for orderId={} userId={}", event.orderId(), event.userId());
             fail(payment, "Forced failure");
             return;
         }
@@ -78,9 +78,9 @@ public class PaymentService {
         }
     }
 
-    public void addForcedFailure(Long orderId) {
-        forcedFailureOrders.add(orderId);
-        log.info("Forced failure registered for orderId={}", orderId);
+    public void addForcedFailureForUser(Integer userId) {
+        forcedFailureUsers.add(userId);
+        log.info("Forced failure registered for userId={}", userId);
     }
 
     public PaymentStatusResponse getPaymentStatus(Long orderId) {

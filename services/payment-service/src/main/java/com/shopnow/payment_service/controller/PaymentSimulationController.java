@@ -13,9 +13,9 @@ public class PaymentSimulationController {
 
     private final PaymentService paymentService;
 
-    @PostMapping("/simulate-failure/{orderId}")
-    public ResponseEntity<Void> simulateFailure(@PathVariable Long orderId) {
-        paymentService.addForcedFailure(orderId);
+    @PostMapping("/simulate-failure/next-for-user/{userId}")
+    public ResponseEntity<Void> simulateFailureForUser(@PathVariable Integer userId) {
+        paymentService.addForcedFailureForUser(userId);
         return ResponseEntity.ok().build();
     }
 
