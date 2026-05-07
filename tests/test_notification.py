@@ -98,13 +98,23 @@ def _require_known_product() -> None:
 
 
 def _ensure_stock(quantity: int = 50) -> None:
-    """Top up inventory for KNOWN_PRODUCT_ID so tests don't fail on stock=0."""
-    response = httpx.put(
-        f"{INVENTORY_DIRECT_URL}/inventory/{KNOWN_PRODUCT_ID}/adjust",
-        json={"quantityDelta": quantity},
+    """Top up inventory for KNOWN_PRODUCT_ID so tests don't fail on stock=0.
+
+    Uses POST /inventory/seed which adds directly to available+totalStock without
+    checking reserved — safe even when stuck RESERVED records exist.
+    """
+    info_resp = httpx.get(f"{INVENTORY_DIRECT_URL}/inventory/{KNOWN_PRODUCT_ID}")
+    assert info_resp.status_code == 200, (
+        f"Cannot fetch inventory for product {KNOWN_PRODUCT_ID}: {info_resp.status_code} {info_resp.text}"
     )
-    assert response.status_code == 200, (
-        f"Failed to restock product {KNOWN_PRODUCT_ID}: {response.status_code} {response.text}"
+    product_name = info_resp.json().get("productName", f"product-{KNOWN_PRODUCT_ID}")
+
+    seed_resp = httpx.post(
+        f"{INVENTORY_DIRECT_URL}/inventory/seed",
+        json={"productId": KNOWN_PRODUCT_ID, "productName": product_name, "quantity": quantity},
+    )
+    assert seed_resp.status_code == 200, (
+        f"Failed to restock product {KNOWN_PRODUCT_ID}: {seed_resp.status_code} {seed_resp.text}"
     )
 
 
