@@ -62,6 +62,7 @@ import pytest
 
 MAILHOG_URL = os.environ.get("MAILHOG_URL", "http://localhost:8025")
 PAYMENT_DIRECT_URL = os.environ.get("PAYMENT_DIRECT_URL", "http://localhost:8087/api/v1")
+INVENTORY_DIRECT_URL = os.environ.get("INVENTORY_DIRECT_URL", "http://localhost:8086/api/v1")
 
 _KNOWN_PRODUCT_ID_ENV = os.environ.get("KNOWN_PRODUCT_ID")
 KNOWN_PRODUCT_ID: int | None = int(_KNOWN_PRODUCT_ID_ENV) if _KNOWN_PRODUCT_ID_ENV else None
@@ -94,6 +95,17 @@ def _require_known_product() -> None:
             "KNOWN_PRODUCT_ID env var is not set. "
             "Set it to a valid product ID from the catalog to run this test."
         )
+
+
+def _ensure_stock(quantity: int = 50) -> None:
+    """Top up inventory for KNOWN_PRODUCT_ID so tests don't fail on stock=0."""
+    response = httpx.put(
+        f"{INVENTORY_DIRECT_URL}/inventory/{KNOWN_PRODUCT_ID}/adjust",
+        json={"quantityDelta": quantity},
+    )
+    assert response.status_code == 200, (
+        f"Failed to restock product {KNOWN_PRODUCT_ID}: {response.status_code} {response.text}"
+    )
 
 
 def poll_order_status(
@@ -131,6 +143,7 @@ def _seed_cart_and_create_order(gateway_url: str, token: str) -> tuple[int, str]
     Returns (orderId, correlationId).
     Asserts each step succeeds.
     """
+    _ensure_stock()
     httpx.delete(f"{gateway_url}/cart", headers=auth_headers(token))
 
     add_resp = httpx.post(
