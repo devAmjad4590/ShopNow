@@ -29,6 +29,15 @@ redis-data/
 CLAUDE.md
 GEMINI.md
 TASK.md
+FRONTEND_SPEC.md
+
+# Frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.vercel
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
 
 # Python
 __pycache__/
